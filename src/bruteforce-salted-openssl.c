@@ -34,6 +34,7 @@ the covered work.
 #include <locale.h>
 #include <math.h>
 #include <pthread.h>
+#include <fnmatch.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -519,7 +520,7 @@ void * decryption_func(void *arg)
         if(magic == NULL)
           preview_found = valid_data(out, total_out_len);
         else
-          preview_found = !strncmp(out, magic, strlen(magic));
+          preview_found = fnmatch(magic, out, 0) == 0 ? 1 : 0;
       }
     } else {
       /* If not doing a preview decryption, pretend we found a hit so we decrypt the remaining data. */
@@ -543,7 +544,7 @@ void * decryption_func(void *arg)
       if(magic == NULL)
         found = valid_data(out, total_out_len);
       else
-        found = !strncmp(out, magic, strlen(magic));
+        found = fnmatch(magic, out, 0) == 0 ? 1 : 0;
     }
     else
       found = 0;
@@ -905,7 +906,7 @@ void usage(char *progname)
   fprintf(stderr, "  -l <length>  Minimum password length (beginning and end included).\n");
   fprintf(stderr, "                 default: 1\n\n");
   fprintf(stderr, "  -M <string>  Consider the decryption as successful when the data starts\n");
-  fprintf(stderr, "               with <string>. Without this option, the decryption is considered\n");
+  fprintf(stderr, "               with fnmatch <string>. Without this option, the decryption is considered\n");
   fprintf(stderr, "               as successful when the data contains mostly printable ASCII\n");
   fprintf(stderr, "               characters (at least 90%%).\n\n");
   fprintf(stderr, "  -m <length>  Maximum password length (beginning and end included).\n");
