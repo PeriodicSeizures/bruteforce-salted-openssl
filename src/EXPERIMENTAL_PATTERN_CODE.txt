@@ -1,0 +1,154 @@
+// CMakeProject1.cpp : Defines the entry point for the application.
+//
+
+#include "CMakeProject1.h"
+
+#include <cassert>
+
+const char* crziwc_compile(const char* user_pattern, char* out_pattern, int out_size) {
+    // some escaped sequences can be optimized instead of continually running computations for millions of passwords
+    // some sequences can also be simplified to avoid otherwise oddities, like ?*?*?
+    // ?*?*?*?*? = at least length 5
+    // ?* = 
+
+    // too complex for now, why...
+
+    for (;;) {
+        char patternChar = *user_pattern++;
+        if (patternChar == '\\') {
+            // \xFF
+            char nextPatternChar = *user_pattern++;
+
+            if (nextPatternChar == 'x') {
+                int byte = 0;
+                for (int i = 0; i < 2; i++) {
+                    int hexChar = (int)*user_pattern++;
+                    if (hexChar >= (int)'0' && hexChar <= (int)'9') {
+                        hexChar -= (int)'0';
+                    } else if (hexChar >= (int)'a' && hexChar <= (int)'f') {
+                        hexChar = 10 + hexChar - (int)'a';
+                    } else if (hexChar >= (int)'A' && hexChar <= (int)'F') {
+                        hexChar = 10 + hexChar - (int)'A';
+                    } else if (hexChar == (int)'\0') {
+                        return "unexpected end of string when parsing \\x{} '\\0'";
+                    } else {
+                        return "invalid character when parsing \\x{}";
+                    }
+
+                    assert(hexChar >= 0 && hexChar <= 16 && "Hexchar bad value");
+
+                    byte |= (hexChar << ((1 - i) * 4));
+                }
+
+                if (byte == (int)'\0' || byte == (int)'\n' || byte == (int)'\r') {
+                    // bad, cannot insert \0 as character in *any* position
+                    return "\\x cannot embed '\\0', '\\n', or '\\r' into cstring";
+                }
+
+                // embed byte
+                *out_pattern++ = (char)byte;
+
+            } else if (nextPatternChar == '\0') {
+                // EOL
+                break;
+            } else if (nextPatternChar == '\\') {
+                // Escape an 'escape'
+                *out_pattern = nextPatternChar;
+            } else {
+                return "unsupported escape sequence";
+            }
+        } else {
+            // embed directly
+            *out_pattern++ = patternChar;
+        }
+
+        if (patternChar == '\0') {
+            break;
+        }
+    }
+
+    *out_pattern = '\0';
+
+    // success; no error string to return
+    return NULL;
+}
+
+bool crziwc_match(const char* pattern, const char* str) {
+    // *
+    //abcdefghijklmnop
+    // SKIP ALL (MATCH)
+
+    // *a
+    //abcdefghijklmnop
+    // SKIP ALL UNTIL a
+    // a, but extra chars following matched 'a'
+    // NO MATCH
+
+    for (;;) {
+        char pattern1 = *pattern++;
+
+        // Escape sequences have *hopefully* already been processed out by pattern compile
+        //if (pattern1 == '\\') {
+        //    // escape this character, and the next one
+        //    if (*pattern++ == '\0') {
+        //        // error, invalid escape
+        //        //  escape espected, got end of string
+        //
+        //        // also should specific only be escaped?
+        //    }
+        //
+        //}
+
+        if (pattern1 == '*') {
+            char stopChar = *pattern;
+            for (;;) {
+                char strChar = *str;
+                if (strChar == '\0' || strChar == stopChar || stopChar == '?') // || stopChar == '*')
+                    break;
+                str++;
+            }
+        } else if (pattern1 == '?') {
+            char strChar = *str++;
+            // if nothing left, 
+            if (strChar == '\0')
+                return false;
+        } else if (pattern1 == '\0' && *str == '\0') {
+            return true;
+        } else if (pattern1 != *str) {
+            // fail
+            return false;
+        } else {
+            str++;
+        }
+        //str++; // hmm
+    }
+
+    return true;
+}
+
+int main() {
+    //const char* pattern = "*e*";
+    // base support works,
+    // now implement escapes
+    //  - indicators 
+    //  - hex seqs (control chars + extended ascii)
+
+    //const char* pattern = "?*?*?";
+    //const char* str = "BabcbaE";
+
+    //const char* pattern = "\\*";
+    const char* user_pattern = "*\\xFF\\x01?\\";
+    const char* str = "trjrkj\xff\x01t";
+
+    char compiled_pattern[32] = { 0 };
+    const char* err_str = crziwc_compile(user_pattern, compiled_pattern, sizeof(compiled_pattern));
+
+    if (err_str) {
+        std::cout << "Pattern error: " << err_str;
+        exit(0);
+    }
+
+    bool result = crziwc_match(compiled_pattern, str);
+
+    return 0;
+}
